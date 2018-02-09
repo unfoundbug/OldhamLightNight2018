@@ -1,5 +1,2 @@
-# Blink Example
-
-Starts a FreeRTOS task to blink an LED
-
-See the README.md file in the upper level 'examples' directory for more information about examples.
+# Oldham Illuminate 2018
+Host application for Oldham 2018 illuminate, maps data coming from a TCP port to ws2812b RGBW leds
