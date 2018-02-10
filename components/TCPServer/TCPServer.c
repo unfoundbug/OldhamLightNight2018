@@ -96,27 +96,34 @@ unsigned int TCPS_SendData(struct STCPServer * sServer, void* pData, unsigned in
 unsigned int TCPS_RecieveData(struct STCPServer * sServer, void* pData, unsigned int iBufferSize)
 {
     unsigned int len = 0;
+	uint16_t wDataChunk;
 	uint8_t byDataSize;
 	uint8_t byChecksum;
 	uint8_t byCSumCal=0;
     if(sServer->m_socketClient > 0)
     {
 		len = recv(sServer->m_socketClient, &byDataSize, 1, 0);
+		wDataChunk = byDataSize;
+		wDataChunk = wDataChunk << 8;
+		len = recv(sServer->m_socketClient, &byDataSize, 1, 0);
+		wDataChunk |= byDataSize;
 		len = 0;
+		//ESP_LOGI(TAG, "RecvLen %d bytes", byDataSize);
+		while(len != wDataChunk)
+			len += recv(sServer->m_socketClient, pData+len, wDataChunk-len, 0);
 		
-		while(len != byDataSize)
-			len += recv(sServer->m_socketClient, pData+len, byDataSize-len, 0);
+		//ESP_LOGI(TAG, "Recvieved Len %d bytes", len);
 		
 		len = recv(sServer->m_socketClient, &byChecksum, 1, 0);
 		
-		for(uint8_t i=0;i<byDataSize; ++i)
+		for(uint16_t i=0;i<wDataChunk; ++i)
 			byCSumCal += ((uint8_t*)pData)[i];
 		
 		if(byCSumCal == byChecksum)
-			len = byDataSize;
+			len = wDataChunk;
 		else 
 		{
-			ESP_LOGE(TAG, "Bad checksum over %d bytes", byDataSize);
+			ESP_LOGE(TAG, "Bad checksum over %d bytes", wDataChunk);
 			len = 0;
 		}
 		
