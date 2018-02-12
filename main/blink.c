@@ -97,7 +97,7 @@ void looptask(void *pvParameter)
 							iLayer1Bass = HQAverage((uint8_t)iLayer2Bass, (uint8_t)0);
 							iLayer2Bass = HQAverage((uint8_t)iLayer3Bass, (uint8_t)0);
 							iLayer3Bass = HQAverage((uint8_t)iLayer4Bass, (uint8_t)0);
-							iLayer4Bass = colTarget[kiLayer4+2].w;					
+							iLayer4Bass = cBuffer[2];					
 							
 						}
 						if(i < kiLayer1)
@@ -109,16 +109,16 @@ void looptask(void *pvParameter)
 							else if(i < kiLayer4)
 								colTarget[i].w = iLayer4Bass;
 						if(i > STRANDS[0].numPixels - 10)
-							colTarget[i].w = cBuffer[0];
+							colTarget[i].w = cBuffer[2];
 						j+=3;
 					}
 					bToDraw = true;
-					vTaskDelay(1);
+					vTaskDelay(0);
 				}
 				
 			} while(iReadData > 0);
 		}
-		vTaskDelay(1);
+		vTaskDelay(0);
 	}
 
 }
@@ -135,13 +135,8 @@ void looptask2(void* pvParam)
 			digitalLeds_updatePixels(&STRANDS[0]);
 			bFadeBass = true;
 			bToDraw= false;
-		}
-		else
-		{	
-			vTaskDelay(1);	
-		}
-		
-		vTaskDelay(0);
+		}		
+		vTaskDelay(1);
 	}
 	
 }
