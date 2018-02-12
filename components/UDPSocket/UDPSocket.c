@@ -60,11 +60,12 @@ unsigned int UDPS_RecieveData(struct SUDPSocket * sServer, void* pData, unsigned
 	uint16_t wDataChunk;
 	if(len < 0)
 	{
-		show_socket_error_reason(sServer->m_socketServer);
+		
 		return 0;
 	}
 	else
 	{
+		ESP_LOGI(TAG, "Received %d bytes", len);
 		wDataChunk = ((uint8_t*)pData)[0];
 		wDataChunk = wDataChunk << 8;
 		wDataChunk |= ((uint8_t*)pData)[1];

@@ -29,6 +29,7 @@
 #include "Generics.h"
 #include "WiFiConfig.h"
 #include "TCPServer.h"
+#include "UDPSocket.h"
 #include "ByteMath.h"
 static const char *TAG = "UFB.WifiControl";
 #define BLINK_GPIO 2
@@ -42,8 +43,8 @@ int STRANDCNT = sizeof(STRANDS)/sizeof(STRANDS[0]);
 pixelColor_t colCur[64];
 pixelColor_t colTarget[64];
 
-struct STCPServer sServer;
-
+//struct STCPServer sServer;
+struct SUDPSocket sServer;
 
 void gpioSetup(int gpioNum, int gpioMode, int gpioVal) {
     gpio_num_t gpioNumNative = (gpio_num_t)(gpioNum);
@@ -53,64 +54,7 @@ void gpioSetup(int gpioNum, int gpioMode, int gpioVal) {
     gpio_set_level(gpioNumNative, gpioVal);
 };
 
-void rainbow(strand_t * pStrand, unsigned long delay_ms, unsigned long timeout_ms)
-{
-  const uint8_t color_div = 4;
-  const uint8_t anim_step = 1;
-  const uint8_t anim_max = pStrand->brightLimit - anim_step;
-  pixelColor_t color1 = pixelFromRGB(anim_max, 0, 0);
-  pixelColor_t color2 = pixelFromRGB(anim_max, 0, 0);
-  uint8_t stepVal1 = 0;
-  uint8_t stepVal2 = 0;
-  bool runForever = (timeout_ms == 0 ? true : false);
-  unsigned long start_ms = millis();
-  while (runForever || (millis() - start_ms < timeout_ms)) {
-    color1 = color2;
-    stepVal1 = stepVal2;
-    for (uint16_t i = 0; i < pStrand->numPixels; i++) {
-      pStrand->pixels[i] = pixelFromRGB(color1.r/color_div, color1.g/color_div, color1.b/color_div);
-      if (i == 1) {
-        color2 = color1;
-        stepVal2 = stepVal1;
-      }
-      switch (stepVal1) {
-        case 0:
-        color1.g += anim_step;
-        if (color1.g >= anim_max)
-          stepVal1++;
-        break;
-        case 1:
-        color1.r -= anim_step;
-        if (color1.r == 0)
-          stepVal1++;
-        break;
-        case 2:
-        color1.b += anim_step;
-        if (color1.b >= anim_max)
-          stepVal1++;
-        break;
-        case 3:
-        color1.g -= anim_step;
-        if (color1.g == 0)
-          stepVal1++;
-        break;
-        case 4:
-        color1.r += anim_step;
-        if (color1.r >= anim_max)
-          stepVal1++;
-        break;
-        case 5:
-        color1.b -= anim_step;
-        if (color1.b == 0)
-          stepVal1 = 0;
-        break;
-      }
-    }
-    digitalLeds_updatePixels(pStrand);
-    delay(delay_ms);
-  }
-  digitalLeds_resetPixels(pStrand);
-}
+
 const int kiLayer1 = 32;
 int iLayer1Bass;
 const int kiLayer2 = 32+24;
@@ -126,32 +70,34 @@ int iGetMax(int i, int j)
 {
  return	i > j ? i : j;
 }
+
+bool bToDraw = false;
+
 void looptask(void *pvParameter)
 {
 	char cBuffer[2048];
 	unsigned int iReadData;
+	memset(cBuffer, 0, 2048);
 	while(true)
 	{
-		if(TCPS_AcceptSocket(&sServer))
+		//if(TCPS_AcceptSocket(&sServer))
 		{
-			memset(cBuffer, 0, 2048);
-			ESP_LOGE(TAG, "Has socket");
 			do
 			{				
-				iReadData = TCPS_RecieveData(&sServer, (void*) cBuffer, 2048);
+				iReadData = UDPS_RecieveData(&sServer, (void*) cBuffer, 2048);
 				if(iReadData > 0)
 				{
 					int j = 1;
 					for (uint16_t i = 0; i < STRANDS[0].numPixels; i++) {
-						colTarget[i] = pixelFromRGB(cBuffer[j], cBuffer[j+1], cBuffer[j+2]);
+						colTarget[i] = pixelFromRGB(cBuffer[j+2], cBuffer[j+3], cBuffer[j+4]);
 						if(bFadeBass)
 						{
 							bFadeBass = false;
 							
-							iLayer1Bass = iGetMax(iLayer2Bass, HQAverage((uint8_t)iLayer1Bass, (uint8_t)0));
-							iLayer2Bass = iGetMax(iLayer3Bass, HQAverage((uint8_t)iLayer2Bass, (uint8_t)0));
-							iLayer3Bass = iGetMax(iLayer4Bass, HQAverage((uint8_t)iLayer3Bass, (uint8_t)0));
-							iLayer4Bass = colTarget[kiLayer4].w;					
+							iLayer1Bass = HQAverage((uint8_t)iLayer2Bass, (uint8_t)0);
+							iLayer2Bass = HQAverage((uint8_t)iLayer3Bass, (uint8_t)0);
+							iLayer3Bass = HQAverage((uint8_t)iLayer4Bass, (uint8_t)0);
+							iLayer4Bass = colTarget[kiLayer4+2].w;					
 							
 						}
 						if(i < kiLayer1)
@@ -166,11 +112,12 @@ void looptask(void *pvParameter)
 							colTarget[i].w = cBuffer[0];
 						j+=3;
 					}
+					bToDraw = true;
 					vTaskDelay(1);
 				}
+				
 			} while(iReadData > 0);
 		}
-		ESP_LOGI(TAG, "Task done");
 		vTaskDelay(1);
 	}
 
@@ -180,21 +127,21 @@ void looptask2(void* pvParam)
 {
 	while(true)
 	{
-		if(true)//rmt_wait_tx_done(STRANDS[0].rmtChannel-1, 1) == ESP_OK)
+		if(bToDraw)//rmt_wait_tx_done(STRANDS[0].rmtChannel-1, 1) == ESP_OK)
 		{
 			for (uint16_t i = 0; i < STRANDS[0].numPixels; i++) {
 				STRANDS[0].pixels[i] = colTarget[i];
 			}
 			digitalLeds_updatePixels(&STRANDS[0]);
 			bFadeBass = true;
+			bToDraw= false;
 		}
 		else
-		{
-			ESP_LOGI(TAG, "Holding draw");
-		
+		{	
+			vTaskDelay(1);	
 		}
 		
-		vTaskDelay(1);
+		vTaskDelay(0);
 	}
 	
 }
@@ -249,8 +196,8 @@ void app_main()
 	ApplyWifiSettings();
 	
 	
-	TCPS_StartServer(8080, &sServer);
-	
+	//TCPS_StartServer(8080, &sServer);
+	UDPSocketStart(8080, &sServer);
 	xTaskCreatePinnedToCore(&looptask, "looptask", 4096, NULL, 5, NULL, 0);
 	xTaskCreatePinnedToCore(&looptask2, "looptask2", 4096, NULL, 5, NULL, 1);
 	

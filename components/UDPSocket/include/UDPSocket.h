@@ -12,3 +12,4 @@ struct SUDPSocket
 };
 
 esp_err_t UDPSocketStart(int port, struct SUDPSocket * sServer);
+unsigned int UDPS_RecieveData(struct SUDPSocket * sServer, void* pData, unsigned int iBufferSize);
