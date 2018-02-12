@@ -18,7 +18,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
-
+#include "driver/rmt.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 
@@ -111,8 +111,21 @@ void rainbow(strand_t * pStrand, unsigned long delay_ms, unsigned long timeout_m
   }
   digitalLeds_resetPixels(pStrand);
 }
-
+const int kiLayer1 = 32;
+int iLayer1Bass;
+const int kiLayer2 = 32+24;
+int iLayer2Bass;
+const int kiLayer3 = 32+24+16;
+int iLayer3Bass;
+const int kiLayer4 = 32+24+16+12;
+int iLayer4Bass;
 uint32_t pLevel = 0;
+
+bool bFadeBass = false;
+int iGetMax(int i, int j)
+{
+ return	i > j ? i : j;
+}
 void looptask(void *pvParameter)
 {
 	char cBuffer[2048];
@@ -121,22 +134,38 @@ void looptask(void *pvParameter)
 	{
 		if(TCPS_AcceptSocket(&sServer))
 		{
+			memset(cBuffer, 0, 2048);
 			ESP_LOGE(TAG, "Has socket");
 			do
-			{
-				memset(cBuffer, 0, 2048);
+			{				
 				iReadData = TCPS_RecieveData(&sServer, (void*) cBuffer, 2048);
 				if(iReadData > 0)
 				{
 					int j = 1;
 					for (uint16_t i = 0; i < STRANDS[0].numPixels; i++) {
 						colTarget[i] = pixelFromRGB(cBuffer[j], cBuffer[j+1], cBuffer[j+2]);
-						if(i > STRANDS[0].numPixels - 1)
+						if(bFadeBass)
+						{
+							bFadeBass = false;
+							
+							iLayer1Bass = iGetMax(iLayer2Bass, HQAverage((uint8_t)iLayer1Bass, (uint8_t)0));
+							iLayer2Bass = iGetMax(iLayer3Bass, HQAverage((uint8_t)iLayer2Bass, (uint8_t)0));
+							iLayer3Bass = iGetMax(iLayer4Bass, HQAverage((uint8_t)iLayer3Bass, (uint8_t)0));
+							iLayer4Bass = colTarget[kiLayer4].w;					
+							
+						}
+						if(i < kiLayer1)
+								colTarget[i].w = iLayer1Bass;
+							else if(i < kiLayer2)
+								colTarget[i].w = iLayer2Bass;
+							else if (i < kiLayer3)
+								colTarget[i].w = iLayer3Bass;
+							else if(i < kiLayer4)
+								colTarget[i].w = iLayer4Bass;
+						if(i > STRANDS[0].numPixels - 10)
 							colTarget[i].w = cBuffer[0];
-						STRANDS[0].pixels[i] = colTarget[i];
 						j+=3;
 					}
-					digitalLeds_updatePixels(&STRANDS[0]);
 					vTaskDelay(1);
 				}
 			} while(iReadData > 0);
@@ -146,6 +175,30 @@ void looptask(void *pvParameter)
 	}
 
 }
+
+void looptask2(void* pvParam)
+{
+	while(true)
+	{
+		if(true)//rmt_wait_tx_done(STRANDS[0].rmtChannel-1, 1) == ESP_OK)
+		{
+			for (uint16_t i = 0; i < STRANDS[0].numPixels; i++) {
+				STRANDS[0].pixels[i] = colTarget[i];
+			}
+			digitalLeds_updatePixels(&STRANDS[0]);
+			bFadeBass = true;
+		}
+		else
+		{
+			ESP_LOGI(TAG, "Holding draw");
+		
+		}
+		
+		vTaskDelay(1);
+	}
+	
+}
+
 
 void app_main()
 {
@@ -185,17 +238,21 @@ void app_main()
         }
         return;
     }
-			
+	
+	if (digitalLeds_initStrands(STRANDS, STRANDCNT)) {
+		ets_printf("Init FAILURE: halting\n");
+		while (true) {};
+	}	
 			
 	if(!LoadWifiSettings())
 		CreateDefaultSettings();
 	ApplyWifiSettings();
+	
+	
 	TCPS_StartServer(8080, &sServer);
-	xTaskCreate(&looptask, "looptask", 4096, NULL, 5, NULL);
-
-	if (digitalLeds_initStrands(STRANDS, STRANDCNT)) {
-		ets_printf("Init FAILURE: halting\n");
-		while (true) {};
-	}
+	
+	xTaskCreatePinnedToCore(&looptask, "looptask", 4096, NULL, 5, NULL, 0);
+	xTaskCreatePinnedToCore(&looptask2, "looptask2", 4096, NULL, 5, NULL, 1);
+	
 
 }
