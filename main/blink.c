@@ -70,7 +70,10 @@ int iGetMax(int i, int j)
 {
  return	i > j ? i : j;
 }
-
+int iGetMin(int i, int j)
+{
+ return	i < j ? i : j;
+}
 bool bToDraw = false;
 
 void looptask(void *pvParameter)
@@ -101,15 +104,15 @@ void looptask(void *pvParameter)
 							
 						}
 						if(i < kiLayer1)
-								colTarget[i].w = iLayer1Bass;
-							else if(i < kiLayer2)
-								colTarget[i].w = iLayer2Bass;
-							else if (i < kiLayer3)
-								colTarget[i].w = iLayer3Bass;
-							else if(i < kiLayer4)
-								colTarget[i].w = iLayer4Bass;
+							colTarget[i].w = iLayer1Bass;
+						else if(i < kiLayer2)
+							colTarget[i].w = iLayer2Bass;
+						else if (i < kiLayer3)
+							colTarget[i].w = iLayer3Bass;
+						else if(i < kiLayer4)
+							colTarget[i].w = iLayer4Bass;
 						if(i > STRANDS[0].numPixels - 10)
-							colTarget[i].w = cBuffer[2];
+							colTarget[i].w = iGetMin(cBuffer[2], 16);
 						j+=3;
 					}
 					bToDraw = true;
