@@ -191,13 +191,16 @@ void app_main()
 			
 	if(!LoadWifiSettings())
 		CreateDefaultSettings();
+	
+	SaveWifiSettings();
+	
 	ApplyWifiSettings();
 	
 	
 	//TCPS_StartServer(8080, &sServer);
 	UDPSocketStart(8080, &sServer);
-	xTaskCreatePinnedToCore(&looptask, "looptask", 4096, NULL, 5, NULL, 0);
-	xTaskCreatePinnedToCore(&looptask2, "looptask2", 4096, NULL, 5, NULL, 1);
+	xTaskCreatePinnedToCore(&looptask, "looptask", 4096, NULL, 5, NULL, 1);
+	xTaskCreatePinnedToCore(&looptask2, "looptask2", 4096, NULL, 5, NULL, 0);
 	
 
 }

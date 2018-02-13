@@ -38,6 +38,7 @@ void SetChecksum(struct SWifiSettings * sSettings)
 {
 	sSettings->cSum = GetChecksum(sSettings);
 };
+
 char CheckChecksum(struct SWifiSettings * sSettings)
 {
 	return GetChecksum(sSettings) != sSettings->cSum;
@@ -112,6 +113,7 @@ char LoadWifiSettings()
 	return cRet;
 
 }
+
 char SaveWifiSettings()
 {
 	char cRet = 0;
@@ -152,6 +154,34 @@ void CreateDefaultSettings()
 	ESP_LOGI(TAG, "Creating default: %s", g_sWifiSettings.rngAPSSID);
 }
 
+void SetWifi_AP(const char* kpcAPName, const char * kpcAPPass)
+{
+	memset(&g_sWifiSettings, 0, sizeof(struct SWifiSettings));
+	g_sWifiSettings.bMode = WIFI_MODE_AP;
+	strcpy(g_sWifiSettings.rngAPSSID, kpcAPName);
+	if(kpcAPPass)
+		strcpy(g_sWifiSettings.rngAPPass, kpcAPPass);
+	else
+		g_sWifiSettings.rngAPPass[0] = 0;
+	ESP_LOGI(TAG, "Setting AP mode: %s", g_sWifiSettings.rngAPSSID);
+	
+	SaveWifiSettings();
+}
+
+void SetWifi_STA(const char* kpcSTAName, const char * kpcSTAPass)
+{
+	memset(&g_sWifiSettings, 0, sizeof(struct SWifiSettings));
+	g_sWifiSettings.bMode = WIFI_MODE_STA;
+	strcpy(g_sWifiSettings.rngSTASSID, kpcSTAName);
+	if(kpcSTAPass)
+		strcpy(g_sWifiSettings.rngSTAPass, kpcSTAPass);
+	else
+		g_sWifiSettings.rngSTAPass[0] = 0;
+	ESP_LOGI(TAG, "Setting STA mode: %s", g_sWifiSettings.rngSTASSID);
+	
+	SaveWifiSettings();
+}
+
 void ApplyAPMode()
 {
 	wifi_config_t ap_config = {
@@ -165,11 +195,13 @@ void ApplyAPMode()
 	};
 	if(g_sWifiSettings.rngAPPass[0])
 	{
+		ESP_LOGI(TAG, "Applying AP mode %s %s", g_sWifiSettings.rngAPSSID, g_sWifiSettings.rngAPPass);
 		ap_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
 		strcpy((char*)ap_config.ap.password, g_sWifiSettings.rngAPPass);
 	}
 	else
 	{
+		ESP_LOGI(TAG, "Applying AP mode %s", g_sWifiSettings.rngAPSSID);
 		ap_config.ap.password[0] = 0;
 	}
 	strcpy((char*)ap_config.ap.ssid, g_sWifiSettings.rngAPSSID);
@@ -181,14 +213,19 @@ void ApplySTAMode()
 	wifi_sta_config_t sta_config = {0};
 	if(g_sWifiSettings.rngSTAPass[0])
 	{
+		ESP_LOGI(TAG, "Applying STA mode %s %s", g_sWifiSettings.rngSTASSID, g_sWifiSettings.rngSTAPass);
 		strcpy((char*)sta_config.password, g_sWifiSettings.rngSTAPass);
 	}
 	else
+	{
+		ESP_LOGI(TAG, "Applying STA mode %s", g_sWifiSettings.rngSTASSID);
 		sta_config.password[0] = 0;
+	}
 	strcpy((char*)sta_config.ssid, g_sWifiSettings.rngSTASSID);
 	sta_config.bssid_set = false;
 	esp_wifi_set_config(WIFI_IF_STA, (wifi_config_t*)&sta_config);
 };
+
 void ApplyWifiSettings()
 {
  //esp_log_level_set("wifi", ESP_LOG_NONE); // disable wifi driver logging
@@ -207,15 +244,18 @@ void ApplyWifiSettings()
 	{
 		case WIFI_MODE_APSTA:
 		{
+			ESP_LOGI(TAG, "Applying APSTA mode");
 			ApplyAPMode();
 			ApplySTAMode();
 		}break;
 		case WIFI_MODE_AP:
 		{
+			ESP_LOGI(TAG, "Applying AP mode");
 			ApplyAPMode();
 		}break;
 		case WIFI_MODE_STA:
 		{
+			ESP_LOGI(TAG, "Applying STA mode");
 			ApplySTAMode();
 		}break;	
 		case WIFI_MODE_NULL:
